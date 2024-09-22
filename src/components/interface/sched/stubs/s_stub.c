@@ -32,3 +32,5 @@ COS_SERVER_3RET_STUB(thdid_t, sched_aep_create_closure)
 
 	return ret;
 }
+
+CWEAKSYMB thdid_t sched_thd_create_closure_nf_rx(thdclosure_index_t idx) { return 0; }

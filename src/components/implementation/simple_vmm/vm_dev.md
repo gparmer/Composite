@@ -40,6 +40,8 @@ This Linux kernel source code is hacked a little bit at the booting stage becaus
 	mkdir dev
 	sudo mknod dev/console c 5 1
 	sudo mknod dev/null c 1 3
+	sudo mknod dev/random c 1 8
+	sudo mknod dev/urandom c 1 9
 	```
 
 	That's it. Just leave this initramfs here and go to build the Linux kernel. You will then need to tell the Linux build system this directory and it will automatically include this initramfs. See the `CONFIG_INITRAMFS_SOURCE` keyword in the config file. You will finally see the output above in your terminal.

@@ -978,9 +978,9 @@ cap_introspect(struct captbl *ct, capid_t capid, u32_t op, unsigned long *retval
 
 #define ENABLE_KERNEL_PRINT
 
-static int composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
+static sword_t composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch);
 
-COS_SYSCALL __attribute__((section("__ipc_entry"))) int
+COS_SYSCALL __attribute__((section("__ipc_entry"))) sword_t 
 composite_syscall_handler(struct pt_regs *regs)
 {
 	struct cap_header *ch;
@@ -994,7 +994,7 @@ composite_syscall_handler(struct pt_regs *regs)
 	 * pass it into other functions to avoid redundant lookups.
 	 */
 	struct cos_cpu_local_info *cos_info   = cos_cpu_local_info();
-	int                        ret        = -ENOENT;
+	sword_t                    ret        = -ENOENT;
 	int                        thd_switch = 0;
 
 	cap = __userregs_getcap(regs);
@@ -1075,14 +1075,14 @@ done:
  * slowpath: other capability operations, most of which
  * involve updating the resource tables.
  */
-static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
+static sword_t __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *regs, int *thd_switch)
 {
 	struct cap_header *        ch;
 	struct captbl *            ct;
 	struct thread *            thd;
 	capid_t                    cap, capin;
 	syscall_op_t               op;
-	int                        ret      = -ENOENT;
+	sword_t                    ret      = -ENOENT;
 	struct cos_cpu_local_info *cos_info = cos_cpu_local_info();
 	struct comp_info          *ci;
 	unsigned long              ip, sp;
@@ -1265,9 +1265,20 @@ static int __attribute__((noinline)) composite_syscall_slowpath(struct pt_regs *
 			word_t            flags;
 
 			ret = cap_kmem_activate(ct, pgtbl_cap, pgtbl_addr, (unsigned long *)&page, &pte);
+			if (ret == -EEXIST || ret == -ECASFAIL) {
+				/* apic access mem has been activated by other vcpu, thus just get the page addr */
+				pgtblc = (struct cap_pgtbl *)captbl_lkup(ct, pgtbl_cap);
+				page = (vaddr_t)pgtbl_lkup(pgtblc->pgtbl, pgtbl_addr & PGTBL_FRAME_MASK, &flags);
+				assert(page);
+				ret = 0;
+			}
+
 			if (likely(!ret)) {
 				ret = vm_lapic_access_activate(ct, cap, lapic_access_cap, page);
+				/* TODO: improve it for multi-vcpu case */
+				assert(!ret);
 			}
+			assert(!ret);
 			if (ret) kmem_unalloc(pte);
 
 			break;

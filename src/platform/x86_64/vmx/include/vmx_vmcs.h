@@ -78,7 +78,7 @@ struct vmx_vmcs {
 void vmx_env_init(void);
 void vmx_thd_init(struct thread *thd, void *vm_pgd, struct cap_vm_vmcb *vmcb);
 void vmx_host_state_init(void);
-void vmx_guest_state_init(void);
+void vmx_guest_state_init(struct thread *thd);
 void vmx_thd_start_or_resume(struct thread *thd);
 
 #else

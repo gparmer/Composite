@@ -14,4 +14,5 @@
 
 vaddr_t contigmem_alloc(unsigned long npages);
 cbuf_t contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_t *pgaddr);
+cbuf_t contigmem_ro_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_t *pgaddr);
 #endif /* MEMMGR_H */

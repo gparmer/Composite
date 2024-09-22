@@ -30,6 +30,28 @@ typedef unsigned int  shm_bm_objid_t;
 #define SHM_BM_REFC(shm, nobj) ((unsigned char *)((unsigned char *)shm + SHM_BM_BITS_TO_WORDS(nobj) * sizeof (word_t)))
 #define SHM_BM_DATA(shm, nobj) ((unsigned char *)(SHM_BM_REFC(shm, nobj) + (unsigned int)nobj))
 
+enum {
+	BYWAY_RO,
+	BYWAY_RO_BIFURCATE,
+	BYWAY_RW
+};
+
+#define BIFURCATE_ARR_SZ 32
+struct bifurcate_shmem {
+	shm_bm_t shm;
+	cbuf_t shm_id;
+};
+
+struct bifurcate_shmem_tuple {
+	cbuf_t shm_id;
+	shm_bm_objid_t first_objid;
+};
+
+struct bifurcate_shmem_header {
+	u16_t len;
+	struct bifurcate_shmem_tuple nf_arr[BIFURCATE_ARR_SZ];
+};
+
 static inline void
 __shm_bm_set_contig(word_t *bm, int offset)
 {

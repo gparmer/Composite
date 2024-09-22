@@ -112,7 +112,7 @@ config-x86_64: config-gen
 	@echo "ARCH_ASFLAGS= -m64 -D__x86_64__ -D__WORD_SIZE_64__ -D__ASM__ -mcmodel=large" >> Makefile.arch
 	@echo "ARCH_LDFLAGS= -melf_x86_64"      >> Makefile.arch
 	@echo "Configuring the system with clock speed and directory structure."
-	@cpu_freq=`cat /sys/devices/system/cpu/cpu0/cpufreq/base_frequency`;cpu_freq=`awk 'BEGIN{printf "%.2f\n",'$$cpu_freq'/'1000000'}'`;echo "#define CPU_GHZ $$cpu_freq" > ./kernel/include/chal/shared/cpu_ghz.h
+	@cpu_freq=`cat /sys/devices/system/cpu/cpu0/cpufreq/base_frequency`;if [ ! -n "$$cpu_freq" ]; then cpu_freq=`cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq`;fi;cpu_freq=`awk 'BEGIN{printf "%.2f\n",'$$cpu_freq'/'1000000'}'`;echo "#define CPU_GHZ $$cpu_freq" > ./kernel/include/chal/shared/cpu_ghz.h
 	@if [ -z "`cat /proc/cpuinfo | grep \"physical id\"`" ]; then echo "#define NUM_CPU_SOCKETS 1" >> ./kernel/include/chal/shared/cpu_ghz.h; else cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l | sed 's/.*\([0-9]\).*/\#define NUM_CPU_SOCKETS \1/' >> ./kernel/include/chal/shared/cpu_ghz.h; fi
 	@echo "Please view Makefile.cosconfig and kernel/include/chal/shared/cpu_ghz.h to make sure they're accurate."
 	@echo "Do _not_ 'git add' either of these files."

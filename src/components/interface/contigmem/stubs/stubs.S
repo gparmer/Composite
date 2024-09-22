@@ -2,3 +2,4 @@
 
 cos_asm_stub(contigmem_alloc)
 cos_asm_stub_indirect(contigmem_shared_alloc_aligned)
+cos_asm_stub_indirect(contigmem_ro_shared_alloc_aligned)

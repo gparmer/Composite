@@ -175,6 +175,7 @@ idt_init(const cpuid_t cpu_id)
 	idt_set_gate(HW_LAPIC_SPURIOUS, (unsigned long)lapic_spurious_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_IPI_ASND, (unsigned long)lapic_ipi_asnd_irq, 0x08, 0x8E);
 	idt_set_gate(HW_LAPIC_TIMER, (unsigned long)lapic_timer_irq, 0x08, 0x8E);
+	idt_set_gate(HW_LAPIC_POSTED_INTR, (unsigned long)posted_intr_irq, 0x08, 0x8E);
 
 flush_idt:
 	/* asm volatile("lidt (%0)" : : "p"(&idtr)); */

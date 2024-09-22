@@ -9,7 +9,7 @@ num_sockets=1
 num_cores=16
 num_threads=1
 vcpus=$[${num_sockets}*${num_cores}*${num_threads}]
-mem_size=4096
+mem_size=9000
 kvm_flag=""
 
 arch=$2
@@ -42,12 +42,12 @@ then
 	debug_flag="-S"
 	if [ "${nic_flag}" == "enable-nic" ]
 	then
-		nic_flag=" -netdev type=tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000e,netdev=net0,mac=66:66:66:66:66:66 "
+		nic_flag=" -netdev type=tap,id=net0,vhost=on,ifname=tap0,script=no,downscript=no -device vmxnet3,netdev=net0,mac=66:66:66:66:66:66 "
 	fi
 elif [ "${debug_flag}" == "enable-nic" ]
 then
 	debug_flag=""
-	nic_flag=" -netdev type=tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000e,netdev=net0,mac=66:66:66:66:66:66 "
+	nic_flag=" -netdev type=tap,id=net0,vhost=on,ifname=tap0,script=no,downscript=no -device vmxnet3,netdev=net0,mac=66:66:66:66:66:66 "
 fi
 
 if [ "${arch}" == "x86_64" ]

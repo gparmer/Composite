@@ -73,12 +73,13 @@ SS_STATIC_SLAB(asnd, struct cm_asnd, MAX_NUM_THREADS);
 
 /* 64 MiB */
 #define MB2PAGES(mb) (round_up_to_page(mb * 1024 * 1024) / PAGE_SIZE)
-#define MM_NPAGES (MB2PAGES(512))
+#define MM_NPAGES (MB2PAGES(9000))
 SS_STATIC_SLAB(page, struct mm_page, MM_NPAGES);
 SS_STATIC_SLAB(span, struct mm_span, MM_NPAGES);
 
-#define CONTIG_PHY_PAGES 70000
-static void * contig_phy_pages = 0;
+#define CONTIG_PHY_PAGES 300000
+static u8_t *contig_phy_pages = 0;
+static u8_t *max_contig_phy_pages = 0;
 
 static struct cm_comp *
 cm_self(void)
@@ -316,8 +317,67 @@ contigmem_alloc(unsigned long npages)
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
+	assert((word_t)contig_phy_pages < max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
 	return vaddr;
+}
+
+cbuf_t
+contigmem_ro_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_t *pgaddr)
+{
+	struct cm_comp *c;
+	struct mm_page *p, *initial = NULL;
+	struct mm_span *s;
+
+	struct mm_mapping *m;
+
+	vaddr_t vaddr;
+
+	unsigned long i;
+	int ret;
+
+	c = ss_comp_get(cos_inv_token());
+	if (!c) return 0;
+
+	void * page = contig_phy_pages;
+
+	if (crt_ro_page_aliasn_aligned_in(page, align, npages, &cm_self()->comp, &c->comp, &vaddr)) BUG();
+
+	s = ss_span_alloc();
+	if (!s) return 0;
+	for (i = 0; i < npages; i++) {
+		p = ss_page_alloc();
+		assert(p);
+
+		if (unlikely(i == 0)) {
+			initial = p;
+		}
+
+		m = &p->mappings[0];
+		if (ss_state_alloc(&m->comp)) BUG();
+
+		p->page = page + i * PAGE_SIZE;
+		m->addr = vaddr + i * PAGE_SIZE;
+
+		ss_state_activate_with(&m->comp, (word_t)c);
+		ss_page_activate(p);
+	}
+
+	/**
+	 * FIXME: Need to reslove concurrent issue here,
+	 * this is not multi-thread safe
+	 */
+	s->page_off = ss_page_id(initial);
+	s->n_pages  = npages;
+	ss_span_activate(s);
+
+	ret = ss_span_id(s);
+
+	*pgaddr = initial->mappings[0].addr;
+
+	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
+	contig_phy_pages += npages * PAGE_SIZE;
+	assert((word_t)contig_phy_pages < max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
+	return ret;
 }
 
 cbuf_t
@@ -375,7 +435,7 @@ contigmem_shared_alloc_aligned(unsigned long npages, unsigned long align, vaddr_
 
 	contigmem_check(cos_inv_token(), (vaddr_t)vaddr, npages);
 	contig_phy_pages += npages * PAGE_SIZE;
-	assert((word_t)contig_phy_pages < CONTIG_PHY_PAGES * PAGE_SIZE);
+	assert((word_t)contig_phy_pages < max_contig_phy_pages + CONTIG_PHY_PAGES * PAGE_SIZE);
 	return ret;
 }
 
@@ -511,6 +571,8 @@ memmgr_shared_page_map_aligned_in_vm(cbuf_t id, unsigned long align, vaddr_t *pg
 	return s->n_pages;
 }
 
+struct ps_lock map_lock = {.o = 0};
+
 unsigned long
 memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 {
@@ -519,6 +581,7 @@ memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 	struct mm_page *p;
 	unsigned int i;
 	vaddr_t addr;
+	ps_lock_take(&map_lock);
 
 	*pgaddr = 0;
 	s = ss_span_get(id);
@@ -536,6 +599,7 @@ memmgr_shared_page_map_aligned(cbuf_t id, unsigned long align, vaddr_t *pgaddr)
 		if (*pgaddr == 0) *pgaddr = addr;
 		align = PAGE_SIZE; // only the first page can have special alignment
 	}
+	ps_lock_release(&map_lock);
 
 	return s->n_pages;
 }
@@ -1021,6 +1085,7 @@ cos_init(void)
 
 	/* Reserve some continuous pages */
 	contig_phy_pages = crt_page_allocn(&cm_self()->comp, CONTIG_PHY_PAGES);
+	max_contig_phy_pages = contig_phy_pages;
 	contigmem_check(cos_compid(), (vaddr_t)contig_phy_pages, CONTIG_PHY_PAGES);
 
 	return;

@@ -66,7 +66,7 @@
 #define COS_HW_MMIO_MAX_SZ (1UL << 27) /* Assuming a MAX of 128MB for MMIO. */
 #if defined(__x86_64__)
 #define COS_PHYMEM_MAX_SZ ((1UL << 35) - (1UL << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */
-#define COS_PHYMEM_END_PA ((1UL << 35) - COS_HW_MMIO_MAX_SZ)               /* Maximum usable physical memory */
+#define COS_PHYMEM_END_PA ((1UL << 37) - COS_HW_MMIO_MAX_SZ)               /* Maximum usable physical memory */
 #else
 #define COS_PHYMEM_MAX_SZ ((1UL << 30) - (1UL << 22) - COS_HW_MMIO_MAX_SZ) /* 1GB - 4MB - MMIO sz */
 #define COS_PHYMEM_END_PA ((1UL << 30) - COS_HW_MMIO_MAX_SZ)               /* Maximum usable physical memory */
@@ -148,6 +148,7 @@
 #if defined(__x86_64__)
 
 #define CONFIG_VMX 1
+#define VMX_SUPPORT_POSTED_INTR 0
 
 /* root page tbale is 0, then second level page table is 1, etc.*/
 #define COS_PGTBL_DEPTH 4

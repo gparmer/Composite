@@ -1,0 +1,7 @@
+#include <cos_asm_stubs.h>
+
+cos_asm_stub(nic_netio_shmem_bind_port)
+cos_asm_stub(nic_netio_shmem_bind_port_right)
+cos_asm_stub(nic_netio_shmem_map)
+cos_asm_stub(nic_netio_shmem_map_bifurcate)
+cos_asm_stub(nic_netio_shmem_get_port_mac_address)

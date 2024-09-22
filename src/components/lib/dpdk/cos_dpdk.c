@@ -114,10 +114,11 @@ cos_eth_ports_init(void)
 	for (i = 0; i < nb_ports; i++) {
 		cos_eth_info_print(ports_ids[i]);
 	}
-#if E810_NIC
-	ports_ids[0] = 1;
-	nb_ports = 1;
-#endif
+
+	if (nb_ports != 1) {
+		ports_ids[0] = 1;
+		nb_ports = 1;
+	}
 
 	return nb_ports;
 }
@@ -295,12 +296,14 @@ cos_dev_port_tx_queue_setup(cos_portid_t port_id, uint16_t tx_queue_id,
 
 	ret = rte_eth_dev_info_get(real_port_id, &dev_info);
 	txq_conf = dev_info.default_txconf;
+
+#if 0
 	/* We assume the NIC provides both IP & UDP offload capability */
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM);
 	assert(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM);
+#endif
 
-	// txq_conf.tx_free_thresh = 4096;
-	txq_conf.tx_free_thresh = 1024 - 32;
+	txq_conf.tx_free_thresh = nb_tx_desc - 32;
 	/* set the txq to enable IP and UDP offload */
 	if (ENABLE_OFFLOAD) {
 		txq_conf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
@@ -451,6 +454,7 @@ cos_dev_port_tx_burst(cos_portid_t port_id, uint16_t queue_id,
 char*
 cos_get_packet(char* mbuf, int *len)
 {
+	rte_prefetch0((char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, void *) + 16);
 	*len = ((struct rte_mbuf*)mbuf)->pkt_len;
 	return (char *)rte_pktmbuf_mtod((struct rte_mbuf*)mbuf, struct rte_ether_hdr *);
 }

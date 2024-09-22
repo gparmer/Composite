@@ -16,7 +16,7 @@ cos_init(void)
 	struct netshmem_pkt_buf *obj;
 	init_thd = cos_thdid();
 	/* create current component's shmem */
-	netshmem_create();
+	netshmem_create(cos_thdid());
 }
 void
 cos_parallel_init(coreid_t cid, int init_core, int ncores)

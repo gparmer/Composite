@@ -25,11 +25,11 @@ void libc_init();
 char *cos_initargs_tar();
 
 /* temporary */
-static inline int
+static inline sword_t
 call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	long fault = 0;
-	int  ret;
+	sword_t  ret;
 
 	/*
 	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
@@ -77,11 +77,11 @@ call_cap_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word
 	return ret;
 }
 
-static inline int
+static inline sword_t
 call_cap_retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *r1, word_t *r2, word_t *r3)
 {
 	long fault = 0;
-	int  ret;
+	sword_t  ret;
 	/*
 	 * We use this frame ctx to save bp(frame pointer) and sp(stack pointer)
 	 * before it goes into the kernel through syscall.
@@ -180,32 +180,32 @@ call_cap_2retvals_asm(u32_t cap_no, u32_t op, word_t arg1, word_t arg2, word_t a
 	return ret;
 }
 
-static inline int
+static inline sword_t
 cap_switch_thd(u32_t cap_no)
 {
 	return call_cap_asm(cap_no, 0, 0, 0, 0, 0);
 }
 
-static inline int
+static inline sword_t
 call_cap(u32_t cap_no, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	return call_cap_asm(cap_no, 0, arg1, arg2, arg3, arg4);
 }
 
-static inline int
+static inline sword_t
 call_cap_op(u32_t cap_no, u32_t op_code, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	return call_cap_asm(cap_no, op_code, arg1, arg2, arg3, arg4);
 }
 
-static int
+static sword_t
 cos_print(char *s, int len)
 {
 	u32_t *s_ints = (u32_t *)s;
 	return call_cap(PRINT_CAP_TEMP, s_ints[0], s_ints[1], s_ints[2], len);
 }
 
-static inline int
+static inline sword_t
 cos_sinv(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t arg4)
 {
 	word_t r1, r2;
@@ -215,7 +215,7 @@ cos_sinv(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t a
 	return call_cap_op(uc->cap_no, 0, arg1, arg2, arg3, arg4);
 }
 
-static inline int
+static inline sword_t
 cos_sinv_2rets(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2)
 {
 	if (likely(uc->alt_fn)) return (uc->alt_fn)(arg1, arg2, arg3, arg4, ret1, ret2);
@@ -223,7 +223,7 @@ cos_sinv_2rets(struct usr_inv_cap *uc, word_t arg1, word_t arg2, word_t arg3, wo
 	return call_cap_2retvals_asm(uc->cap_no, 0, arg1, arg2, arg3, arg4, ret1, ret2);
 }
 
-static inline int
+static inline sword_t
 cos_sinv_rets(u32_t sinv, word_t arg1, word_t arg2, word_t arg3, word_t arg4, word_t *ret1, word_t *ret2, word_t *ret3)
 {
 	return call_cap_retvals_asm(sinv, 0, arg1, arg2, arg3, arg4, ret1, ret2, ret3);

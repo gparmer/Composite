@@ -5,13 +5,18 @@
 struct netshmem netshmems[NETSHMEM_REGION_SZ] = {0};
 
 void
-netshmem_create(void)
+netshmem_create(thdid_t tid)
 {
 	shm_bm_objid_t objid;
 	struct netshmem_pkt_buf *obj;
+	thdid_t thd;
 	void  *mem;
 
-	thdid_t thd = cos_thdid();
+	if (!tid) {
+		thd = cos_thdid();
+	} else {
+		thd = tid;
+	}
 	assert(thd < NETSHMEM_REGION_SZ);
 
 	/* init rx shmem */
@@ -37,6 +42,8 @@ netshmem_get_shm()
 	return netshmems[cos_thdid()].shm;
 }
 
+static char testbuffer[PAGE_SIZE];
+
 void
 netshmem_map_shmem(cbuf_t shm_id)
 {
@@ -49,8 +56,14 @@ netshmem_map_shmem(cbuf_t shm_id)
 	assert(!netshmems[thd].shm);
 
 	npages	= memmgr_shared_page_map_aligned(shm_id, SHM_BM_ALIGN, (vaddr_t *)&mem);
+	printc("---test mem accessibility---\n");
+	for (int i = 0; i < npages; i++) {
+		memcpy(testbuffer, mem + i * PAGE_SIZE, PAGE_SIZE);
+	}
+	printc("---mem accessibility ok---\n");
 	shm	= shm_bm_create_net_pkt_buf(mem, npages * PAGE_SIZE);
 	assert(shm);
+	shm_bm_init_net_pkt_buf(shm);
 
 	netshmems[thd].shm	= shm;
 	netshmems[thd].shm_id	= shm_id;

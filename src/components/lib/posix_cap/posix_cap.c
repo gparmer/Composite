@@ -74,7 +74,7 @@ cos_ioctl(int fd, int request, void *data)
 ssize_t
 cos_brk(void *addr)
 {
-	printc("brk not implemented\n");
+	// printc("brk not implemented\n");
 	/* Unsure if the below comment is accurate. We return 0, so doesn't brk "succeed"? */
 	/* musl libc tries to use brk to expand heap in malloc. But if brk fails, it
 	   turns to mmap. So this fake brk always fails, force musl libc to use mmap */
@@ -85,7 +85,7 @@ void *
 cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret=0;
-	printc("mmap sz:%lu\n", length/1024/1024);
+	// printc("mmap sz:%luKB(%luMB)\n", length/1024, length/1024/1024);
 
 	if (addr != NULL) {
 		printc("parameter void *addr is not supported!\n");
@@ -102,6 +102,7 @@ cos_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	if (!addr){
 		ret = (void *) -1;
 	} else {
+		memset(addr, 0, length);
 		ret = addr;
 	}
 

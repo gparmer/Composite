@@ -193,6 +193,7 @@ IRQ_ID(62)
 IRQ(lapic_spurious)
 IRQ(lapic_ipi_asnd)
 IRQ(lapic_timer)
+IRQ(posted_intr)
 
 /*
  * Loads the IDT into the processor

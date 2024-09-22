@@ -64,8 +64,8 @@ config:
 	$(MUSL_BIN_PATH) meson build \
 	--cross-file $(shell pwd)/cross_x86_64_composite_with_musl \
 	-Dmachine=default -Dc_args="-nostdlib -nostdinc -mcmodel=large -DCOMPOSITE_EXISTS $(DPDK_ADAPTER_INC)" \
-	-Ddefault_library=static -Ddebug=true \
-	-Doptimization=0 -Dincludedir=$(shell pwd)/$(DPDK_INC_DIR) \
+	-Ddefault_library=static -Ddebug=false \
+	-Doptimization=3 -Dincludedir=$(shell pwd)/$(DPDK_INC_DIR) \
 	-Dprefix=$(shell pwd)/$(DPDK_INSTALL_DIR) $(DISABLED_DRIVERS)
 build:
 	$(info Building DPDK)

@@ -1,0 +1,52 @@
+[system]
+description = "Simple VMM"
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}, {interface = "contigmem"}]
+constructor = "booter"
+baseaddr = "0x1000000"
+
+[[components]]
+name = "sched"
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "syncipc"}, {interface = "init"}]
+constructor = "booter"
+baseaddr = "0x1600000"
+
+[[components]]
+name = "nicmgr"
+img  = "nicmgr.dpdk"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}]
+implements = [{interface = "nic_netio_rx"}, {interface = "nic_netio_tx"}, {interface = "nic_netio_shmem"}]
+constructor = "booter"
+baseaddr = "0x6000000"
+
+[[components]]
+name = "vmm"
+img  = "simple_vmm.vmm"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}]
+implements = [{interface = "vmm_netio_rx"}, {interface = "vmm_netio_tx"}, {interface = "vmm_netio_shmem"}]
+constructor = "booter"
+baseaddr = "0x2000000"
+
+[[components]]
+name = "nf_ndpi"
+img  = "simple_nf.ndpi"
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"},{srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "contigmem"}, {srv = "nicmgr", interface = "nic_netio_rx"}, {srv = "nicmgr", interface = "nic_netio_tx"}, {srv = "nicmgr", interface = "nic_netio_shmem"}, {srv = "vmm", interface = "vmm_netio_rx"}, {srv = "vmm", interface = "vmm_netio_tx"}, {srv = "vmm", interface = "vmm_netio_shmem"}]
+params = [{key = "ip", value = "10.10.1.1"}, 
+          {key = "port", value = "90"},
+	  {key = "vmm_id", value = "0"}
+         ]
+constructor = "booter"
+baseaddr = "0x9000000"

@@ -31,7 +31,7 @@
 #endif
 
 #define MAX_SERVICE_DEPTH 31
-#define MAX_NUM_THREADS (25 * NUM_CPU)
+#define MAX_NUM_THREADS (32 * NUM_CPU)
 
 /*
  * A single thread's stack size is 2^17 = 128kb by default

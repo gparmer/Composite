@@ -19,13 +19,28 @@ int expended_process(struct pt_regs *regs, struct thread *thd_curr, struct comp_
                  struct cos_cpu_local_info *cos_info, int timer_intr_context);
 
 /* The tmp regs stack used for VM-exit switching to other threads */
-static struct pt_regs tmp_regs;
+static struct pt_regs tmp_regs[NUM_CPU];
 
 /* When VMM tries to write cr0/cr4, kernel needs to take care of them */
 extern u64_t cr4_fixed1_bits;
 extern u64_t cr4_fixed0_bits;
 extern u64_t cr0_fixed1_bits;
 extern u64_t cr0_fixed0_bits;
+
+int
+posted_intr_handler(struct pt_regs *regs)
+{
+	/* should not come here by design */
+	assert(0);
+	return 0;
+}
+
+static void
+posted_intr_inject(void)
+{
+	chal_selfipi(HW_LAPIC_POSTED_INTR);
+}
+
 
 void
 vmx_resume(struct thread *thd)
@@ -65,6 +80,18 @@ vmx_resume(struct thread *thd)
 	if (shared_region->interrupt_status) {
 		vmwrite(GUEST_INTERRUPT_STATUS, shared_region->interrupt_status);
 	}
+
+#if VMX_SUPPORT_POSTED_INTR
+	/* 
+	 * TODO: We definitely would like to support posted interrupt mechanism since it can reduce multi-core
+	 * interrupt injection overhead. However, this currently cannot work small timer tick like 100us set up.
+	 * Thus, currently just keep the legacy interrupt injection mechanism.
+	 */
+	if (unlikely(shared_region->inject_evt)) {
+		posted_intr_inject();
+		shared_region->inject_evt = 0;
+	}
+#endif
 
 	/* TODO: some msrs like kernel gs are (per-core) constant, can make host saving code simpler`*/
 	thd->vcpu_ctx.vmcs.host_msr_gs_base = msr_get(IA32_GS_BASE);
@@ -133,11 +160,13 @@ vmx_exit_handler(struct vm_vcpu_shared_region *regs)
 	u64_t reason, qualification, gla, gpa, inst_length, inst_info;
 	u8_t reason_nr;
 	int ret = 0;
+	unsigned long cpuid;
 	struct cos_cpu_local_info *cos_info;
 	struct thread *thd_curr, *thd_exception_handler, *next;
 	struct vm_vcpu_shared_region *shared_region;
 	cos_info = cos_cpu_local_info();
-	thd_curr = thd_current(cos_info);
+	thd_curr = thd_current(cos_info);	
+	cpuid = cos_info->cpuid;
 
 	thd_curr->vcpu_ctx.vmcs.guest_msr_gs_base = msr_get(IA32_GS_BASE);
 	thd_curr->vcpu_ctx.vmcs.guest_msr_gskernel_base = msr_get(IA32_KERNEL_GSBASE);
@@ -188,6 +217,7 @@ vmx_exit_handler(struct vm_vcpu_shared_region *regs)
 	shared_region->sp = vmread(GUEST_RSP);
 	shared_region->efer = vmread(GUEST_IA32_EFER);
 	shared_region->cr0 = vmread(GUEST_CR0);
+	shared_region->cr3 = vmread(GUEST_CR3);
 	shared_region->cr4 = vmread(GUEST_CR4);
 	shared_region->interrupt_status = vmread(GUEST_INTERRUPT_STATUS);
 	shared_region->inst_length = inst_length;
@@ -204,15 +234,15 @@ vmx_exit_handler(struct vm_vcpu_shared_region *regs)
 	if (reason_nr == VM_EXIT_REASON_EXTERNAL_INTERRUPT) {
 		lapic_ack();
 		/*FIXME: might need a xsave/xrestore for sse/avx for current vcpu thd because current thd is set to be exception handler */
-		copy_gp_regs(&thd_exception_handler->regs, &tmp_regs);
-		ret = timer_process(&tmp_regs, thd_exception_handler);
+		copy_gp_regs(&thd_exception_handler->regs, &tmp_regs[cpuid]);
+		ret = timer_process(&tmp_regs[cpuid], thd_exception_handler);
 	} else {
 		next = thd_exception_handler;
-		ret = cap_thd_switch(&tmp_regs, thd_curr, next, NULL, cos_info);
+		ret = cap_thd_switch(&tmp_regs[cpuid], thd_curr, next, NULL, cos_info);
 		vmx_assert(ret == 0);
 	}
 
-	__asm__ volatile("movq %%rbx, %%rsp; jmpq *%%rcx": : "a"(ret), "b"(&tmp_regs),"c"(&restore_from_vm));
+	__asm__ volatile("movq %%rbx, %%rsp; jmpq *%%rcx": : "a"(ret), "b"(&tmp_regs[cpuid]),"c"(&restore_from_vm));
 
 	/* Should never come here */
 	vmx_assert(0);

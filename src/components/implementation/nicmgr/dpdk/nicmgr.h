@@ -7,7 +7,7 @@
 #include <ck_ring.h>
 #include <sync_sem.h>
 
-#define NIC_MAX_SESSION 512
+#define NIC_MAX_SESSION 2000
 #define NIC_MAX_SHEMEM_REGION 3
 
 #define NIC_SHMEM_RX 0

@@ -3,6 +3,8 @@
 #include <cos_kernel_api.h>
 #include <consts.h>
 
+#define VMRT_MAX_VM (10)
+
 #define VMRT_VM_NAME_SIZE (32)
 #define VMRT_VM_MAX_VCPU (16)
 
@@ -16,6 +18,11 @@ struct vmrt_vm_vcpu {
 	 * A VMM is responsible to have its own apic implementation.
 	 */
 	void *vlapic;
+
+	/* Instruction emulation context */
+	void *inst_ctxt;
+
+	void *mmio_request;
 
 	thdid_t tid;
 	thdcap_t cap;
@@ -40,17 +47,21 @@ struct vmrt_vm_comp {
 	void *guest_addr;
 	word_t guest_mem_sz;
 
+	void *ioapic;
 	vm_lapicaccesscap_t lapic_access_page;
 
 	char name[VMRT_VM_NAME_SIZE];
 
-	u8_t num_vpu;
+	u8_t num_vcpu;
 	struct vmrt_vm_vcpu vcpus[VMRT_VM_MAX_VCPU];
 
+	thdid_t tx_thd;
+
 	int wire_mode;
+	u16_t vm_mac_id;
 };
 
-#define VMRT_GPA2HVA(gpa, vm, offset) { ((gpa - offset) + vm->guest_addr) }
+#define VMRT_GPA2HVA(gpa, vm, offset) ((gpa - offset) + vm->guest_addr)
 #define GPA2HVA(gpa, vm) VMRT_GPA2HVA(gpa, vm, PAGE_SIZE_4K)
 
 typedef void vmrt_exception_handler(struct vmrt_vm_vcpu *vcpu);
@@ -62,7 +73,8 @@ void vmrt_vm_vcpu_resume(struct vmrt_vm_vcpu *vcpu);
 void vmrt_vm_data_copy_to(struct vmrt_vm_comp *vm, char *image, u64_t size, paddr_t gpa);
 void vmrt_vm_exception_handler(void *vcpu);
 void vmrt_vm_vcpu_start(struct vmrt_vm_vcpu *vcpu);
-static inline struct vmrt_vm_vcpu *vmrt_get_vcpu(struct vmrt_vm_comp *vm, u32_t vcpu_nr) { return &vm->vcpus[vcpu_nr]; }
+paddr_t vmrt_vm_gva2gpa(struct vmrt_vm_vcpu *vcpu, vaddr_t gva);
+static inline struct vmrt_vm_vcpu *vmrt_get_vcpu(struct vmrt_vm_comp *vm, u32_t vcpu_nr) { assert(vcpu_nr < vm->num_vcpu);return &vm->vcpus[vcpu_nr]; }
 
 void lapic_intr_inject(struct vmrt_vm_vcpu *vcpu, u8_t vector, int autoeoi);
 
@@ -106,3 +118,12 @@ enum {
 };
 
 #define LAPIC_BASE_ADDR (0xFEE00000)
+#define IOAPIC_BASE_ADDR (0xFEC00000)
+
+#define PGTBL_LVL_4_IDX(addr) ((((u64_t)(addr)) >> 39) & 0x1FF)
+#define PGTBL_LVL_3_IDX(addr) ((((u64_t)(addr)) >> 30) & 0x1FF)
+#define PGTBL_LVL_2_IDX(addr) ((((u64_t)(addr)) >> 21) & 0x1FF)
+#define PGTBL_LVL_1_IDX(addr) ((((u64_t)(addr)) >> 12) & 0x1FF)
+#define PGTBL_ENTRY_ADDR_MASK 0X000FFFFFFFFFF000
+#define PGTBL_ENTRY_PRESENT(entry) ((u64_t)entry & 0x1)
+#define PGTBL_ENTRY_SUPER_PAGE(entry) ((u64_t)entry & 0x80)

@@ -30,7 +30,61 @@ vmrt_dump_vcpu(struct vmrt_vm_vcpu *vcpu)
 	printc("\tRIP: %016llx\tRSP: %016llx\tInst Len: %llu\n", regs->ip, regs->sp, regs->inst_length);
 	printc("\tGPA: %016llx\n", regs->gpa);
 	printc("\tEFER: %016llx\t\n", regs->efer);
-	printc("\tCR0: %016llx\tCR2: %016llx\tCR4: %016llx\n", regs->cr0, regs->cr2, regs->cr4);
+	printc("\tCR0: %016llx\tCR2: %016llx\tCR3: %016llx\tCR4: %016llx\n", regs->cr0, regs->cr2, regs->cr3, regs->cr4);
+}
+
+paddr_t
+vmrt_vm_gva2gpa(struct vmrt_vm_vcpu *vcpu, vaddr_t gva)
+{
+	struct vm_vcpu_shared_region *shared_region;
+	u64_t cr3;
+	u64_t *hva;
+	u64_t paddr;
+	u64_t l4, l3, l2, l1;
+	u64_t l4_entry, l3_entry, l2_entry, l1_entry; 
+
+	shared_region = vcpu->shared_region;
+
+	cr3 = shared_region->cr3 & ~(u64_t)0xFFF;
+
+	hva = GPA2HVA(cr3, vcpu->vm);
+
+	l4 = PGTBL_LVL_4_IDX(gva);
+	l3 = PGTBL_LVL_3_IDX(gva);
+	l2 = PGTBL_LVL_2_IDX(gva);
+	l1 = PGTBL_LVL_1_IDX(gva);
+
+	l4_entry = hva[l4];
+
+	assert(PGTBL_ENTRY_PRESENT(l4_entry));
+
+	paddr = (l4_entry & PGTBL_ENTRY_ADDR_MASK);
+	hva = GPA2HVA(paddr, vcpu->vm);
+	l3_entry = hva[l3];
+
+	assert(PGTBL_ENTRY_PRESENT(l3_entry));
+
+	if (PGTBL_ENTRY_SUPER_PAGE(l3_entry)) {
+		return (paddr_t)(l3_entry & PGTBL_ENTRY_ADDR_MASK) + (gva & 0x3FFFFFFF);
+	}
+
+	paddr = (l3_entry & PGTBL_ENTRY_ADDR_MASK);
+	hva = GPA2HVA(paddr, vcpu->vm);
+	l2_entry = hva[l2];
+
+	assert(PGTBL_ENTRY_PRESENT(l2_entry));
+
+	if (PGTBL_ENTRY_SUPER_PAGE(l2_entry)) {
+		return (paddr_t)(l2_entry & PGTBL_ENTRY_ADDR_MASK) + (gva & 0x1FFFFF);
+	}
+
+	paddr = (l2_entry & PGTBL_ENTRY_ADDR_MASK);
+	hva = GPA2HVA(paddr, vcpu->vm);
+	l1_entry = hva[l1];
+
+	assert(PGTBL_ENTRY_PRESENT(l1_entry));
+
+	return (paddr_t)(l1_entry & PGTBL_ENTRY_ADDR_MASK) + (gva & 0xFFF);
 }
 
 void
@@ -82,7 +136,7 @@ vmrt_vm_vcpu_init(struct vmrt_vm_comp *vm, u32_t vcpu_nr)
 	thdid_t tid, handler_tid;
 	thdcap_t cap;
 	vaddr_t resource;
-	assert(vcpu_nr < vm->num_vpu);
+	assert(vcpu_nr < vm->num_vcpu);
 
 	vcpu = &vm->vcpus[vcpu_nr];
 	assert(!vcpu->shared_region);
@@ -150,7 +204,7 @@ vmrt_vm_create(struct vmrt_vm_comp *vm, char *name, u8_t num_vcpu, u64_t vm_mem_
 	vm->lapic_access_page = lapic_access_page;
 
 	assert(num_vcpu < VMRT_VM_MAX_VCPU);
-	vm->num_vpu = num_vcpu;
+	vm->num_vcpu = num_vcpu;
 	vm->guest_mem_sz = vm_mem_sz;  
 
 	strcpy((char *)&vm->name, name);
@@ -182,6 +236,12 @@ CWEAKSYMB void
 wrmsr_handler(struct vmrt_vm_vcpu *vcpu)
 {
 	VM_PANIC(vcpu);;
+}
+
+CWEAKSYMB void 
+ept_violation_handler(struct vmrt_vm_vcpu *vcpu)
+{
+	VM_PANIC(vcpu);
 }
 
 CWEAKSYMB void 
@@ -217,6 +277,12 @@ io_handler(struct vmrt_vm_vcpu *vcpu)
 
 CWEAKSYMB void 
 cpuid_handler(struct vmrt_vm_vcpu *vcpu)
+{
+	VM_PANIC(vcpu);
+}
+
+CWEAKSYMB void 
+pause_handler(struct vmrt_vm_vcpu *vcpu)
 {
 	VM_PANIC(vcpu);
 }
@@ -334,6 +400,12 @@ ctrl_register_access_handler(struct vmrt_vm_vcpu *vcpu)
 	}
 }
 
+CWEAKSYMB void 
+hlt_handler(struct vmrt_vm_vcpu *vcpu)
+{
+	VM_PANIC(vcpu);
+}
+
 static inline void
 vmrt_handle_reason(struct vmrt_vm_vcpu *vcpu, u64_t reason)
 {
@@ -348,8 +420,7 @@ vmrt_handle_reason(struct vmrt_vm_vcpu *vcpu, u64_t reason)
 		cpuid_handler(vcpu);
 		break;
 	case VM_EXIT_REASON_HLT:
-		/* TODO: handle hlt exception */
-		VM_PANIC(vcpu);
+		hlt_handler(vcpu);
 		break;
 	case VM_EXIT_REASON_RDTSC:
 		VM_PANIC(vcpu);
@@ -371,7 +442,10 @@ vmrt_handle_reason(struct vmrt_vm_vcpu *vcpu, u64_t reason)
 		break;
 	case VM_EXIT_REASON_PAUSE:
 		/* TODO: handle pause exception */
-		GOTO_NEXT_INST(vcpu->shared_region);
+		pause_handler(vcpu);
+		break;
+	case VM_EXIT_REASON_EPT_VIOLATION:
+		ept_violation_handler(vcpu);
 		break;
 	case VM_EXIT_REASON_EPT_MISCONFIG:
 		ept_misconfig_handler(vcpu);
@@ -399,7 +473,7 @@ void
 vmrt_vm_vcpu_start(struct vmrt_vm_vcpu *vcpu)
 {
 	/* This is actually just to "push" the vcpu handler thread into run queue. */
-	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 30));
+	sched_thd_param_set(vcpu->handler_tid, sched_param_pack(SCHEDP_PRIO, 31));
 }
 
 void
@@ -420,8 +494,17 @@ vmrt_vm_exception_handler(void *_vcpu)
 		vmrt_handle_reason(vcpu, reason);
 		rdtscll(curr_tsc);
 		if (curr_tsc >= vcpu->next_timer) {
+#if VMX_SUPPORT_POSTED_INTR
+			vlapic_timer_expired(vcpu);
+#else 
 			/* 236 is Linux's fixed timer interrrupt */
 			lapic_intr_inject(vcpu, 236, 0);
+#endif
+			vcpu->next_timer = ~0ULL;
 		}
+
+#if VMX_SUPPORT_POSTED_INTR
+		vlapic_inject_intr(vcpu);
+#endif
 	}
 }

@@ -42,7 +42,7 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 	multiboot_memory_map_t *mmap;
 	u8_t *                  mod_end;
 	u8_t *                  mem_addr;
-	unsigned long long      mem_len, sz;
+	unsigned long long      mem_len, sz = 0;
 
 	for (mmap = ((struct multiboot_tag_mmap *) tag)->entries;
 		(multiboot_uint8_t *) mmap < (multiboot_uint8_t *) tag + tag->size;
@@ -62,11 +62,18 @@ multiboot_mem_parse(struct multiboot_tag *tag)
 			continue;
 		}
 		/* is this the memory region we'll use for component memory? */
-		if (mmap->type == 1 && mod_end >= mem_addr && mod_end < (mem_addr + mem_len)) {
-			sz = (mem_addr + mem_len) - mod_end;
+		if (mmap->type == 1 && mem_len > sz) {
+			if (mod_end > (mem_addr + mem_len)) continue;
+			if (mod_end > mem_addr) {
+				sz = (mem_addr + mem_len) - mod_end;
+			} else {
+				sz = mem_len;
+				glb_memlayout.kern_boot_heap = mem_addr;
+				glb_memlayout.mod_end = mem_addr;
+			}
 			glb_memlayout.kmem_end = mem_addr + mem_len;
-			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB)\n", sz,
-				MEM_MB_ONLY(sz), MEM_KB_ONLY(sz));
+			printk("\t  memory usable at boot time: %lx (%ld MB + %ld KB) [%lx, %lx)\n", sz,
+				MEM_MB_ONLY(sz), MEM_KB_ONLY(sz), glb_memlayout.kern_boot_heap, glb_memlayout.kmem_end);
 		}
 		i++;
 	}

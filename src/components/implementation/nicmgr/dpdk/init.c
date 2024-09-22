@@ -1,6 +1,8 @@
 #include <llprint.h>
 #include <cos_dpdk.h>
-#include <nic.h>
+#include <nic_netio_rx.h>
+#include <nic_netio_tx.h>
+#include <nic_netio_shmem.h>
 #include <shm_bm.h>
 #include <netshmem.h>
 #include <sched.h>
@@ -10,9 +12,13 @@
 #include <rte_hash.h>
 #include <rte_jhash.h>
 #include <rte_hash_crc.h>
+#include <rte_prefetch.h>
+#include <rte_mbuf_core.h>
+#include <rte_memcpy.h>
 #include <sync_blkpt.h>
 #include <sync_lock.h>
 #include "nicmgr.h"
+#include "simple_hash.h"
 
 #define ENABLE_DEBUG_INFO 0
 
@@ -164,6 +170,7 @@ process_tx_packets(void)
 	}
 }
 
+static u32_t __ip;
 static void
 process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 {
@@ -175,60 +182,41 @@ process_rx_packets(cos_portid_t port_id, char** rx_pkts, uint16_t nb_pkts)
 	struct arp_hdr		*arp_hdr;
 	struct tcp_udp_port	*port;
 	struct client_session	*session;
+	struct client_session	*default_session;
 	char                    *pkt;
 	struct pkt_buf           buf;
+	u32_t ip = 0;
+	u16_t svc_id = 0;
 
 	for (i = 0; i < nb_pkts; i++) {
 		pkt = cos_get_packet(rx_pkts[i], &len);
 		eth = (struct eth_hdr *)pkt;
 
-		if (htons(eth->ether_type) == 0x0800) {
-			iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
-			if (unlikely(iph->proto != UDP_PROTO)) {
-				// assert(0);
-				cos_free_packet(rx_pkts[i]);
-				rx_enqueued_miss++;
-				continue;
-			}
-			port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
+		iph	= (struct ip_hdr *)((char *)eth + sizeof(struct eth_hdr));
+		port	= (struct tcp_udp_port *)((char *)eth + sizeof(struct eth_hdr) + iph->ihl * 4);
+		ip = iph->dst_addr;
+		svc_id = ntohs(port->dst_port);
 
-			// printc("port id:0x%x\n", port->dst_port);
-			session = cos_hash_lookup(port->dst_port);
-			// assert(session->port == port->dst_port);
-			if (unlikely(debug_flag)) {
-				debug_print_stats();
-				debug_flag = 0;
-			}
-			if (unlikely(session == NULL)) {
-				cos_free_packet(rx_pkts[i]);
-				continue;
-			}
-			// memset(&buf, 0, sizeof(buf));
-			buf.pkt = rx_pkts[i];
-			// if (ntohs(port->dst_port) == 6) {
-			// 	buf.tent_id = 6;
-			// 	buf.srcid = ntohs(port->src_port);
-			// } else if(ntohs(port->dst_port) == 7) {
-			// 	buf.tent_id = 7;
-			// 	buf.srcid = ntohs(port->src_port);
-			// } else {
-			// 	assert(0);
-			// }
-			if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
-				cos_free_packet(buf.pkt);
-				rx_enqueued_miss++;
-				continue;
-			}
-			enqueued_rx++;
-			// if (unlikely(debug_flag)) {
-			// 	session->sem.debug = 1;
-			// }
-
-			sync_sem_give(&session->sem);
-		} else if (htons(eth->ether_type) == 0x0806) {
-			cos_free_packet(buf.pkt);
+		default_session = simple_hash_find(ip, 0);
+		if (unlikely(default_session == NULL)) {
+			cos_free_packet(rx_pkts[i]);
 			continue;
 		}
+
+		session = simple_hash_find(ip, svc_id);
+
+		if (session == NULL) {
+			session = default_session;
+		}
+
+		buf.pkt = rx_pkts[i];
+		if (unlikely(!pkt_ring_buf_enqueue(&(session->pkt_ring_buf), &buf))){
+			cos_free_packet(rx_pkts[i]);
+			rx_enqueued_miss++;
+			continue;
+		}
+
+		// sync_sem_give(&session->sem);
 	}
 }
 
@@ -284,6 +272,8 @@ cos_nic_start(){
 	uint16_t nb_pkts = 0;
 
 	char *rx_packets[MAX_PKT_BURST];
+	int count = 0;
+	__ip = inet_addr("10.10.1.2");
 
 	while (1) {
 #if USE_CK_RING_FREE_MBUF
@@ -292,16 +282,20 @@ cos_nic_start(){
 #if ENABLE_DEBUG_INFO
 		debug_dump_info();
 #endif
-		// process_tx_packets();
 
-		// only port 0, queue 0 receive packets
 		nb_pkts = cos_dev_port_rx_burst(0, 0, rx_packets, MAX_PKT_BURST);
-		/* These are the two test options */
-		// if (nb_pkts!= 0) transmit_back(0, rx_packets, nb_pkts);
-		// if (nb_pkts!= 0) cos_dev_port_tx_burst(0, 0, rx_packets, nb_pkts);
 
 		/* This is the real processing logic for applications */
-		if (nb_pkts != 0) process_rx_packets(0, rx_packets, nb_pkts);
+		if (nb_pkts != 0) {
+			process_rx_packets(0, rx_packets, nb_pkts);
+		} else {
+			// sched_thd_block_timeout(0, ps_tsc() + 2000*2);
+			count++;
+			if (count > 5) {
+				count = 0;
+				sched_thd_yield();
+			}
+		}
 	}
 }
 
@@ -336,7 +330,7 @@ cos_nic_init(void)
 			"--log-level",
 			"*:info", /* log level can be changed to *debug* if needed, this will print lots of information */
 			"-m",
-			"128", /* total memory used by dpdk memory subsystem, such as mempool */
+			"256", /* total memory used by dpdk memory subsystem, such as mempool */
 			};
 
 	argc = ARRAY_SIZE(argv);
@@ -391,6 +385,7 @@ void
 cos_init(void)
 {
 	printc("nicmgr init...\n");
+#if 1
 	cos_nic_init();
 	cos_hash_init();
 #ifdef USE_CK_RING_FREE_MBUF
@@ -400,7 +395,29 @@ cos_init(void)
 		sync_lock_init(&tx_lock[i]);
 	}
 
+#endif
 	printc("dpdk init end\n");
+}
+
+thdid_t recv_tid = 0;
+thdid_t idle_tid = 0;
+
+#define RECV_THD_PRIORITY 31
+#define IDLE_THD_PRIORITY 31
+
+static void
+recv_task(void)
+{
+	cos_nic_start();
+}
+
+void
+cos_parallel_init(coreid_t cid, int init_core, int ncores)
+{
+	if(cid == 0) {
+		recv_tid = sched_thd_create((void *)recv_task, NULL);
+		printc("dpdk recv tid :%ld\n", recv_tid);
+	}
 }
 
 int
@@ -408,7 +425,8 @@ parallel_main(coreid_t cid)
 {
 	/* DPDK rx and tx will only run on core 0 */
 	if(cid == 0) {
-		cos_nic_start();
+		sched_thd_param_set(recv_tid, sched_param_pack(SCHEDP_PRIO, RECV_THD_PRIORITY));
+		sched_thd_block(0);
 	} else {
 #if 0
 #if E810_NIC == 0

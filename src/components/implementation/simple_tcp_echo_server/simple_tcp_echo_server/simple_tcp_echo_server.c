@@ -11,7 +11,7 @@ cos_init(void)
 	struct netshmem_pkt_buf *obj;
 
 	/* create current component's shmem */
-	netshmem_create();
+	netshmem_create(cos_thdid());
 
 	netmgr_shmem_map(netshmem_get_shm_id());
 

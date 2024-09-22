@@ -284,8 +284,8 @@ chal_cpu_init(void)
 	writemsr(MSR_LSTAR, (u32_t)((u64_t)sysenter_entry), (u32_t)((u64_t)sysenter_entry >> 32));
 	writemsr(MSR_SFMASK, 512, 0);
 	writemsr(MSR_USER_GSBASE, 0, 0);
-	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&kernel_stack_info[cpu_id])),
-	         (u32_t)((u64_t)(&kernel_stack_info[cpu_id]) >> 32));
+	writemsr(MSR_KERNEL_GSBASE, (u32_t)((u64_t)(&kernel_stack_info[cpu_id])), (u32_t)((u64_t)(&kernel_stack_info[cpu_id]) >> 32));
+
 
 #elif defined(__i386__)
 	chal_cpu_cr4_set(cr4 | CR4_PSE | CR4_PGE);

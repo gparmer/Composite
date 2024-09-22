@@ -39,6 +39,12 @@ chal_send_ipi(int cpu_id)
 }
 
 void
+chal_selfipi(u8_t vector)
+{
+	lapic_selfipi(vector);
+}
+
+void
 chal_khalt(void)
 {
 	khalt();

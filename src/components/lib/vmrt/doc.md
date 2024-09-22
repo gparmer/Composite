@@ -44,7 +44,7 @@ struct vmrt_vm_comp {
 
 	char name[VMRT_VM_NAME_SIZE];
 
-	u8_t num_vpu;
+	u8_t num_vcpu;
 	struct vmrt_vm_vcpu vcpus[VMRT_VM_MAX_VCPU];
 };
 ```
@@ -62,7 +62,7 @@ vmrt_vm_create(struct vmrt_vm_comp *vm, char *name, u8_t num_vcpu, u64_t vm_mem_
 
 	/* 2. Initialize vm members */
 	assert(num_vcpu < VMRT_VM_MAX_VCPU);
-	vm->num_vpu = num_vcpu;
+	vm->num_vcpu = num_vcpu;
 	vm->guest_mem_sz = vm_mem_sz;  
 
 	strcpy((char *)&vm->name, name);

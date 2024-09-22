@@ -16,7 +16,7 @@ cos_init(void)
 	struct netshmem_pkt_buf *obj;
 
 	/* create current component's shmem */
-	netshmem_create();
+	netshmem_create(cos_thdid());
 	udp_stack_shmem_map(netshmem_get_shm_id());
 	printc("app init shm done\n");
 }

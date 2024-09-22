@@ -32,6 +32,7 @@
 
 typedef unsigned long      word_t;
 typedef unsigned long long dword_t;
+typedef signed long        sword_t;
 typedef u64_t              cycles_t;
 typedef u64_t              microsec_t;
 typedef unsigned long      tcap_res_t;
@@ -604,6 +605,23 @@ typedef unsigned short int cos_channelkey_t; /* 0 == PRIVATE KEY. >= 1 GLOBAL KE
 
 /* VM shared data structures */
 
+struct vm_pi_desc {
+	/* posted-intr desc is defined to be 64B by the hardware */
+
+	u64_t pir[4]; /* interrupt vectors, 256 bits together */
+
+	union {
+		struct {
+			u8_t on :1;
+			u8_t padding:7;
+		} outstanding_noti;
+
+		u64_t val;
+	} info;
+
+	u64_t padding[3];
+} __attribute__((aligned(CACHE_LINE), packed));
+
 #define MAX_VM_EXIT_REASONS 70
 struct vm_vcpu_shared_region {
 	u64_t cr2;
@@ -635,9 +653,13 @@ struct vm_vcpu_shared_region {
 	u64_t gpa;
 	u64_t efer;
 	u64_t cr0;
+	u64_t cr3;
 	u64_t cr4;
 
 	u64_t microcode_version;
+	u16_t inject_evt;
+
+	struct vm_pi_desc pi_desc __attribute__((aligned(CACHE_LINE))); /* posted interrupt support, which is essentially an interface to record interrupt vectors */
 };
 
 enum {
@@ -660,8 +682,9 @@ enum {
 #define VM_EXIT_REASON_RDMSR				31
 #define VM_EXIT_REASON_WRMSR				32
 #define VM_EXIT_REASON_PAUSE				40
-#define VM_EXIT_REASON_EPT_MISCONFIG			49
 #define VM_EXIT_REASON_APIC_ACCESS			44
+#define VM_EXIT_REASON_EPT_VIOLATION			48
+#define VM_EXIT_REASON_EPT_MISCONFIG			49
 #define VM_EXIT_REASON_PREEMPTION_TIMER			52
 #define VM_EXIT_REASON_XSETBV				55
 #define VM_EXIT_REASON_APIC_WRITE			56

@@ -24,6 +24,7 @@ CXXFLAGS=-fno-exceptions -fno-threadsafe-statics -Wno-write-strings $(CFLAGS)
 LDFLAGS=$(ARCH_LDFLAGS)
 MUSLCFLAGS=$(CFLAGS) -lc -lgcc -Xlinker -r
 ASFLAGS=$(ARCH_ASFLAGS) $(CINC) $(SHARED_FLAGS)
+CFLAGS+= $(COMP_FLAGS)
 
 GCC_PIE=$(shell gcc -v 2>&1 | grep -c "\--enable-default-pie")
 ifeq ($(GCC_PIE),1)

@@ -48,7 +48,8 @@ COMP_LD_SCRIPT=$(IMPLDIR)/comp_armv7a.ld
 endif
 
 .PHONY: all
-all: print $(SOURCE_DEPENDENCIES) $(COMPOBJ)
+all: print $(SOURCE_DEPENDENCIES) $(COMPOBJ) private
+.PHONY: private
 
 .PHONY: print
 print:

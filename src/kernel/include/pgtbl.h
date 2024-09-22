@@ -142,7 +142,7 @@ int            chal_pgtbl_cpy(struct captbl *t, capid_t cap_to, capid_t capin_to
 int            chal_pgtbl_cons(struct cap_captbl *ct, struct cap_captbl *ctsub, capid_t expandid, unsigned long depth);
 int            chal_pgtbl_decons(struct cap_header *head, struct cap_header *sub, capid_t pruneid, unsigned long lvl);
 /* Introspection */
-int            chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr);
+word_t            chal_pgtbl_introspect(struct cap_header *ch, vaddr_t addr);
 
 #endif /* PGTBL_H */
 

@@ -79,7 +79,7 @@ vmx_host_state_init(void)
 }
 
 void
-vmx_guest_state_init(void)
+vmx_guest_state_init(struct thread *thd)
 {
 	/* Initializing guest state, this will set guest into real mode */
 	u64_t tmp64;
@@ -118,7 +118,7 @@ vmx_guest_state_init(void)
 	#define DATA_ACCESS_RIGHT (0x3 | 1 << 4 | 1 << 7)
 	#define CODE_ACCESS_RIGHT (0x3 | 1 << 4 | 1 << 7 | 1 << 13)
 	#define LDTR_ACCESS_RIGHT (0x2 | 1 << 7)
-	#define TR_ACCESS_RIGHT (0x3 | 1 << 7)
+	#define TR_ACCESS_RIGHT (0xB | 1 << 7)
 	vmwrite(GUEST_CS_ACCESS_RIGHTS, CODE_ACCESS_RIGHT);
 	vmwrite(GUEST_DS_ACCESS_RIGHTS, DATA_ACCESS_RIGHT);
 	vmwrite(GUEST_ES_ACCESS_RIGHTS, DATA_ACCESS_RIGHT);
@@ -188,7 +188,7 @@ vmx_pinbased_ctl_init(void)
 {
 	u32_t pinbased_execution_ctl = 0;
 
-	pinbased_execution_ctl |= EXTERNAL_INTERRUPT_EXITING ;
+	pinbased_execution_ctl |= EXTERNAL_INTERRUPT_EXITING | PROCESS_POSTED_INTERRUPTS ;
 	pinbased_execution_ctl = fix_reserved_ctrl_bits(IA32_VMX_PINBASED_CTLS, pinbased_execution_ctl);
 	vmwrite(PIN_BASED_VM_EXECUTION_CONTROLS, pinbased_execution_ctl);
 }
@@ -199,7 +199,7 @@ vmx_procbased_ctl_init(void)
 	u32_t primary_procbased_ctls = 0;
 	u32_t second_procbased_ctls = 0;
 
-	primary_procbased_ctls =  MWAIT_EXITING | RDPMC_EXITING | USE_TPR_SHADOW 
+	primary_procbased_ctls =  HLT_EXITING | MWAIT_EXITING | RDPMC_EXITING | USE_TPR_SHADOW 
 				| UNCONDITIONAL_IO_EXITING | USE_MSR_BITMAPS
 				| PAUSE_EXITING | ACTIVATE_SECONDARY_CONTROLS;
 	primary_procbased_ctls = fix_reserved_ctrl_bits(IA32_VMX_TRUE_PROCBASED_CTLS, primary_procbased_ctls);
@@ -360,6 +360,9 @@ vmx_thd_init(struct thread *thd, void *vm_pgd, struct cap_vm_vmcb *vmcb)
 	eptp |= (4 - 1) << 3;
 	eptp |= 1 << 6;
 	vmwrite(EPTP, eptp);
+
+	vmwrite(POSTED_INTERRUPT_NOTIFICATION_VECTOR, HW_LAPIC_POSTED_INTR);
+	vmwrite(POSTED_INTERRUPT_DESCRIPTOR, chal_va2pa(&((struct vm_vcpu_shared_region *)shared_region)->pi_desc));
 }
 
 static void
@@ -397,7 +400,7 @@ vmx_thd_start_or_resume(struct thread *thd)
 	assert(thd->vcpu_ctx.state = VM_THD_STATE_STOPPED);
 
 	vmx_host_state_init();
-	vmx_guest_state_init();
+	vmx_guest_state_init(thd);
 	vmx_pinbased_ctl_init();
 	vmx_procbased_ctl_init();
 	vmx_vm_exit_ctl_init();
