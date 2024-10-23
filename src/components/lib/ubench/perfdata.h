@@ -248,4 +248,19 @@ perfdata_all(struct perfdata *pd)
 	printc("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n");
 }
 
+
+static void
+perfdata_raw(struct perfdata *pd)
+{
+	int i;
+
+	printc("#PD:%s\n", pd->name);
+	printc("#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n");
+
+	printc("#Latency\n");
+	for (i = 0 ; i < pd->sz ; i++) printc("V: %llu\n", pd->values[i]);
+
+	printc("#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n\n");
+}
+
 #endif /* PERFDATA_H */

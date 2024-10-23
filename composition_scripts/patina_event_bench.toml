@@ -1,0 +1,58 @@
+[system]
+description = "Simplest system with crt tests."
+
+[[components]]
+name = "booter"
+img  = "no_interface.llbooter"
+implements = [{interface = "init"}, {interface = "addr"}]
+deps = [{srv = "kernel", interface = "init", variant = "kernel"}]
+baseaddr = "0x1000000"
+constructor = "kernel"
+
+[[components]]
+name = "capmgr"
+img  = "capmgr.simple"
+deps = [{srv = "booter", interface = "init"}, {srv = "booter", interface = "addr"}]
+implements = [{interface = "capmgr"}, {interface = "init"}, {interface = "memmgr"}, {interface = "capmgr_create"}]
+baseaddr = "0x1100000"
+constructor = "booter"
+
+[[components]]
+name = "sched"
+img  = "sched.pfprr_quantum_static"
+deps = [{srv = "capmgr", interface = "init"}, {srv = "capmgr", interface = "capmgr"}, {srv = "capmgr", interface = "memmgr"}]
+implements = [{interface = "sched"}, {interface = "init"}]
+baseaddr = "0x1200000"
+constructor = "booter"
+
+[[components]]
+name = "chanmgr"
+img  = "chanmgr.simple"
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "capmgr", interface = "capmgr"}]
+implements = [{interface = "chanmgr"}, {interface = "chanmgr_evt"}]
+baseaddr = "0x1300000"
+constructor = "booter"
+
+[[components]]
+name = "evtmgr"
+img  = "evt.evtmgr"
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}]
+implements = [{interface = "evt"}]
+baseaddr = "0x1400000"
+constructor = "booter"
+
+[[components]]
+name = "tmrmgr"
+img  = "tmrmgr.simple"
+deps = [{srv = "sched", interface = "init"}, {srv = "sched", interface = "sched"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "evtmgr", interface = "evt"}]
+implements = [{interface = "tmrmgr"}]
+baseaddr = "0x1500000"
+constructor = "booter"
+
+[[components]]
+name = "tests"
+img  = "tests.patina_event_bench"
+implements = [{interface = "init"}]
+deps = [{srv = "sched", interface = "sched"}, {srv = "sched", interface = "init"}, {srv = "capmgr", interface = "capmgr_create"}, {srv = "capmgr", interface = "memmgr"}, {srv = "evtmgr", interface = "evt"}, {srv = "tmrmgr", interface = "tmrmgr"}, {srv = "chanmgr", interface = "chanmgr"}, {srv = "chanmgr", interface = "chanmgr_evt"}]
+baseaddr = "0x1600000"
+constructor = "booter"

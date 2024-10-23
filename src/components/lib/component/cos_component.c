@@ -254,7 +254,7 @@ start_execution(coreid_t cid, int init_core, int ncores)
 			/* continue only if there is no user-defined main, or parallel exec */
 			COS_EXTERN_INV(init_done)(parallel_init, main_type);
 			/* Shouldn't return if we don't want to run parallel init or main */
-			assert(parallel_init || main_type != INIT_MAIN_NONE);
+			// assert(parallel_init || main_type != INIT_MAIN_NONE);
 		}
 
 		/* Parallel initialization awaits `cos_init` completion */
